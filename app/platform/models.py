@@ -1,0 +1,11 @@
+import app.modules.identity.models  # noqa: F401
+import app.modules.workspaces.models  # noqa: F401
+import app.modules.marketplace.models  # noqa: F401
+import app.modules.applications.models  # noqa: F401
+import app.modules.payments.models  # noqa: F401
+import app.modules.reviews.models  # noqa: F401
+import app.modules.notifications.models  # noqa: F401
+import app.modules.catalog.models  # noqa: F401
+import app.modules.profiles.models  # noqa: F401
+import app.modules.chat.models  # noqa: F401
+import app.modules.disputes.models  # noqa: F401

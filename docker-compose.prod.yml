@@ -1,0 +1,55 @@
+# Публичный сервер с доменом и HTTPS. Запуск:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Первый сертификат выпускает ./setup-prod.sh.
+
+services:
+  api:
+    environment:
+      DOCS_ENABLED: "false"
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+
+  nginx:
+    ports: !override
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    volumes:
+      - ./nginx/templates/https.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - certbot_www:/var/www/certbot:ro
+      - letsencrypt:/etc/letsencrypt:ro
+    # Перечитывать сертификаты раз в 6 часов после продления.
+    command: ["/bin/sh", "-c", "while :; do sleep 6h; nginx -s reload; done & exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
+
+  certbot:
+    image: certbot/certbot:v4.1.1
+    restart: unless-stopped
+    volumes:
+      - certbot_www:/var/www/certbot
+      - letsencrypt:/etc/letsencrypt
+    entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Ежедневный дамп базы в ./backups, хранятся 14 дней.
+  db-backup:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: workgine
+      PGDATABASE: workgine
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do pg_dump -Fc -f /backups/workgine_$$(date +%F_%H%M).dump && find /backups -name '*.dump' -mtime +14 -delete; sleep 24h & wait $${!}; done"]
+    depends_on:
+      db: { condition: service_healthy }
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  certbot_www:
+  letsencrypt:

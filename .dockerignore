@@ -1,0 +1,15 @@
+.git
+.github
+.env*
+venv
+.venv
+frontend
+nginx
+__pycache__
+**/__pycache__
+.pytest_cache
+*.zip
+*.md
+*.ps1
+*.sh
+docker-compose*.yml

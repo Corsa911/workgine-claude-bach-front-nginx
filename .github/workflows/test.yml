@@ -1,0 +1,46 @@
+name: Workgine stage 1 checks
+on: [push, pull_request]
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: isolated_ci_database_password
+      SECRET_KEY: isolated-ci-secret-with-at-least-32-characters
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose --profile test run --build --rm test
+      - if: always()
+        run: docker compose --profile test down -v
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+  stack:
+    # Полный запуск в Docker: сборка образов, миграции, nginx, smoke-тест.
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: isolated_ci_database_password
+      SECRET_KEY: isolated-ci-secret-with-at-least-32-characters
+      HTTP_PORT: "8080"
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up --build -d --wait --wait-timeout 300 nginx
+      - run: |
+          curl -fsS http://127.0.0.1:8080/health
+          curl -fsS -o /dev/null http://127.0.0.1:8080/auth
+          curl -fsS -o /dev/null http://127.0.0.1:8080/api/v1/catalog/categories
+      - if: failure()
+        run: docker compose logs --tail 200
+      - if: always()
+        run: docker compose down -v
